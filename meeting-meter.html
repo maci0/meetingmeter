@@ -1,0 +1,390 @@
+<html>
+  <head>
+    <title>Meeting-meter</title>
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+    <script type="text/javascript" src="js/cookies.js"></script>
+
+    <script>
+      var lastTickDate;
+      var totalMillisecondCost = 0;
+
+      var currentpersoncount;
+      var perperson;
+
+      var preCurrency;
+      var postCurrency;
+
+      var running = false;
+
+      function isDigit (c) {
+        return ((c >= "0") && (c <= "9"))
+      }
+
+      String.prototype.trim = function() {
+        return (this.replace(/^\s+|\s+$/g, ""))
+      }
+
+      String.prototype.startsWith = function(str) {
+        return (this.match("^"+str)==str)
+      }
+
+      function init() {
+        detectAndSetLocalization();
+        generateAndInsertLanguageList();
+        personCountChanged();
+        costChanged();
+      }
+
+      function generateAndInsertLanguageList() {
+        var languageListString = "";
+        for(var languageString in lang) {
+          if(languageString != "defaultlang") {
+            languageListString += "<a href=\"javascript:setLocalization('" + languageString + "', true)\">" + lang[languageString].displayname + "</a> ";
+          }
+        }
+
+        document.getElementById("languagelist").innerHTML = languageListString;
+      }
+
+      function updateCost() {
+        if(currentpersoncount) {
+          var currDate = new Date();
+
+          totalMillisecondCost += (currDate.getTime() - lastTickDate.getTime())*parseInt(currentpersoncount);
+          lastTickDate = currDate;
+        }
+      }
+
+      function updateDisplay() {
+        if(perperson) {
+          var decimals = 0;
+
+          if(currentpersoncount && currentpersoncount*perperson < 7200 && (totalMillisecondCost*parseInt(perperson)/60/60/1000).toFixed(2) < 100) {
+            decimals = 2;
+          }
+
+          document.getElementById("costsofar").innerHTML = (totalMillisecondCost*parseInt(perperson)/60/60/1000).toFixed(decimals);
+        } else {
+          document.getElementById("costsofar").innerHTML = "?";
+        }
+      }
+
+      function start() {
+        if(running == false) {
+          running = true;
+
+          document.getElementById("startButton").style.display = "none";
+          document.getElementById("intro").style.display = "none";
+          document.getElementById("counter").style.display = "";
+
+          lastTickDate = new Date();
+
+          tickUpdate();
+
+          document.getElementById("pauseButton").style.display = "";
+        }
+      }
+
+      function stop() {
+        running = false;
+
+        document.getElementById("startButton").style.display = "";
+        document.getElementById("pauseButton").style.display = "none";
+      }
+
+      function tickUpdate() {
+        updateCost();
+        updateDisplay();
+
+        if(running) {
+          setTimeout(tickUpdate, 250);
+        }
+      }
+
+      function increaseNumberOfPersons() {
+        if(parseInt(document.forms.costform.currentpersoncount.value)) {
+          document.forms.costform.currentpersoncount.value++;
+
+          document.forms.costform.decreasePersonCountButton.disabled = false;
+
+          personCountChanged();
+        }
+      }
+
+
+      function decreaseNumberOfPersons() {
+        if(parseInt(document.forms.costform.currentpersoncount.value) && document.forms.costform.currentpersoncount.value > 1) {
+          document.forms.costform.currentpersoncount.value--;
+
+          if(document.forms.costform.currentpersoncount.value <= 1) {
+            document.forms.costform.decreasePersonCountButton.disabled = true;
+          }
+
+          personCountChanged();
+        }
+      }
+
+      function removeSpacesFromString(costString2) {
+        var costString3 = "";
+        for(var charCounter = 0; charCounter < costString2.length; charCounter++) {
+          if(costString2.charAt(charCounter).trim() != "" && (costString3.length > 0 || costString2.charAt(charCounter) != '0')) {
+            if(isDigit(costString2.charAt(charCounter))) {
+              costString3 += costString2.charAt(charCounter);
+            } else {
+              return "NaN";
+            }
+          }
+        }
+
+        return costString3;
+      }
+
+      function updatePerHourSum() {
+        if(perperson && currentpersoncount) {
+          document.getElementById("sumperhour").innerHTML = preCurrency + (currentpersoncount * perperson) + postCurrency;
+        } else {
+          document.getElementById("sumperhour").innerHTML = "?";
+        }
+      }
+
+      function costChanged() {
+        var costString = document.forms.costform.perperson.value;
+
+        var firstNumberPos;
+        var lastNumberPos;
+
+        for(firstNumberPos = 0; firstNumberPos < costString.length && (isDigit(costString.charAt(firstNumberPos)) == false || costString.charAt(firstNumberPos).trim() == ""); firstNumberPos++) {
+        }
+
+
+        for(lastNumberPos = costString.length; lastNumberPos > 0 && (isDigit(costString.charAt(lastNumberPos)) == false || costString.charAt(lastNumberPos).trim() == ""); lastNumberPos--) {
+        }
+
+        preCurrency = costString.substring(0, firstNumberPos);
+        postCurrency = costString.substring(lastNumberPos + 1, costString.length);
+
+        perperson = parseInt(removeSpacesFromString(costString.substring(firstNumberPos, lastNumberPos+1)));
+
+        if(perperson) {
+          document.getElementById("perpersoninput").style.color="";
+          document.getElementById("perpersoninput").style.borderColor="";
+        } else {
+          document.getElementById("perpersoninput").style.color="red";
+          document.getElementById("perpersoninput").style.borderColor="red";
+        }
+
+        updatePerHourSum();
+        updateDisplay();
+
+        document.getElementById("precurrency").innerHTML = preCurrency;
+        document.getElementById("postcurrency").innerHTML = postCurrency;
+      }
+
+      function costKeyPress() {
+        setCookie("editedPerPerson", "true");
+        setTimeout(costChanged, 1);
+      }
+
+      function personCountChanged() {
+        currentpersoncount = parseInt(removeSpacesFromString(document.forms.costform.currentpersoncount.value));
+
+        if(currentpersoncount) {
+          document.getElementById("currentpersoncountinput").style.color="";
+          document.getElementById("currentpersoncountinput").style.borderColor="";
+        } else {
+          document.getElementById("currentpersoncountinput").style.color="red";
+          document.getElementById("currentpersoncountinput").style.borderColor="red";
+        }
+
+        updatePerHourSum();
+      }
+
+      function personCountKeyPress() {
+        setTimeout(personCountChanged, 1);
+      }
+
+      function detectAndSetLocalization() {
+        var language = getCookie("lang") || navigator.userLanguage || navigator.language;
+
+        setLocalization(language, false);
+      }
+
+      var lang = new Object();
+
+      lang.en = {
+        displayname: "English",
+        title: "Meeting meter",
+        introHeader: "How expensive is the meeting?",
+        introBody: "1. Enter the number of attendees<br>2. Enter average rate per attendee<br>3. Press play to start the meter",
+        startButtonHelp: "Start the meter",
+        pauseButtonHelp: "Pause the meter (accumulated value will not reset)",
+        counterHeader: "This meeting has cost:",
+        increaseButtonHelp: "Increase the number of attendees by one - when someone arrives",
+        personCountHelp: "Number of attendees in the meeting (at the moment)",
+        decreaseButtonHelp: "Decrease the number of attendees by one - when someone leaves",
+        personRateHelp: "Average hourly rate per attendee, including the currency. Example: \"$200\"",
+        personRate: "95 &euro;"
+      }
+
+      lang.sv = {
+        displayname: "Svenska",
+        title: "Mötesmätaren",
+        introHeader: "Vad kostar mötet?",
+        introBody: "1. Fyll hur många personer som deltar i mötet<br>2. Fyll i genomsnittlig timkostnad per deltagare<br>3. Tryck på play-knappen för att starta mötet",
+        startButtonHelp: "Starta mätaren",
+        pauseButtonHelp: "Pausa mätaren (kostnaden nollställs inte)",
+        counterHeader: "Kostnad:",
+        increaseButtonHelp: "Öka antalet deltagare med en - när någon tillkommer",
+        personCountHelp: "Antal deltagare i mötet (just nu)",
+        decreaseButtonHelp: "Minska antalet deltagare med en - när någon lämnar mötet",
+        personRateHelp: "Genomsnittlig timkostnad per deltagare. Skriv också valutan. Exempel: \"600 kr\"",
+        personRate: "600 kr"
+      }
+
+      lang.defaultlang = lang.en;
+
+      function getLanguageString(language, label) {
+        if(lang[language][label]) {
+          return lang[language][label];
+        } else {
+          return lang.defaultlang[label];
+        }
+      }
+
+      function setLocalization(langString, remember) {
+        if(!langString) {
+          langString = "defaultlang";
+        }
+
+        var foundLang = langString.toLowerCase();
+        if(!lang[foundLang]) {
+          foundLang = foundLang.substring(0, 2);
+        }
+
+        if(!lang[foundLang]) {
+          foundLang = "defaultlang";
+        }
+
+        if(lang[foundLang.toLowerCase()]) {
+            if(remember) {
+              setCookie("lang", foundLang);
+            }
+
+            document.title = getLanguageString(foundLang, "title");
+
+            document.getElementById("introheader").innerHTML = getLanguageString(foundLang, "introHeader");
+            document.getElementById("introbody").innerHTML = getLanguageString(foundLang, "introBody");
+
+            document.getElementById("startButton").title = getLanguageString(foundLang, "startButtonHelp");
+            document.getElementById("pauseButton").title = getLanguageString(foundLang, "pauseButtonHelp");
+
+
+            document.getElementById("counterheader").value = getLanguageString(foundLang, "counterHeader");
+
+
+            document.getElementById("increasePersonCountButton").title = getLanguageString(foundLang, "increaseButtonHelp");
+
+            document.getElementById("currentpersoncounticon").title = getLanguageString(foundLang, "personCountHelp");
+            document.getElementById("currentpersoncountinput").title = getLanguageString(foundLang, "personCountHelp");
+
+            document.getElementById("decreasePersonCountButton").title = getLanguageString(foundLang, "decreaseButtonHelp");
+
+            document.getElementById("perpersonicon").title = getLanguageString(foundLang, "personRateHelp");
+            document.getElementById("perpersoninput").title = getLanguageString(foundLang, "personRateHelp");
+
+            if(!getCookie("editedPerPerson")) {
+              document.getElementById("perpersoninput").value = getLanguageString(foundLang, "personRate");
+            }
+        }
+
+        costChanged();
+      }
+    </script>
+
+    <style type="text/css">
+      body {
+        font-family: sans-serif;
+        margin: 0px;
+      }
+
+      form {
+        margin-bottom: 0px;
+      }
+
+      .formtable td, .formtable input {
+        font-size: 35pt;
+        color: gray;
+      }
+
+      button.personCountButton {
+        padding: 0px;
+        width: 60px;
+        height: 60px;
+      }
+
+      bbutton.personCountButton img {
+        width: 32px;
+        height: 32px
+      }
+    </style>
+  </head>
+
+  <body onload="init()">
+    <form id="costform" onsubmit="return false;">
+      <table border=0 cellpadding=0 cellspacing=0 height="100%" align="center" width="100%">
+        <tr>
+          <td height="1%" align="center"><span id="languagelist" style="font-face: arial; font-size: 1pt;"></span></td>
+        </tr>
+        <tr>
+          <td height="100%" align="center">
+            <div id="intro">
+              <div style="font-size: 80pt" id="introheader"></div>
+
+              <p>
+
+              <div style="font-size: 25pt" id="introbody">
+                Loading...
+              </div>
+            </div>
+
+            <div id="counter" style="display: none">
+              <input id="counterheader" type="text" style="font-size: 50pt; border: none; background: none; text-align: center; width: 100%" value=""><br>
+              <span style="font-size: 150pt; color: red;"><span id="precurrency"></span><span id="costsofar">0</span><span id="postcurrency"></span></span>
+            </div>
+
+
+            <button id="startButton" onclick="start(); return false;" style="border: none; background: none"><img src="images/play.png"></button>
+            <button style="display: none; border: none; background: none" id="pauseButton" onclick="stop(); return false;"><img src="images/pause.png"></button>
+            <table border=0 cellspacing=0 cellpadding=0 class="formtable" align=center>
+              <tr>
+                <td colspan=3 align=center><img src="images/attendees.png" id="currentpersoncounticon"></td>
+                <td align=center><img src="images/rate.png"  id="perpersonicon"></td>
+              </tr>
+              <tr>
+                <td>
+                  <button class="personCountButton" id="increasePersonCountButton" onclick="increaseNumberOfPersons(); return false;"><img src="images/increase.png"></button></td>
+                <td>
+                  <input type="text" name="currentpersoncount" id="currentpersoncountinput" onchange="personCountKeyPress()" onkeyup="personCountKeyPress()" style="width: 2em; text-align: right" value="6"></td>
+                <td>
+                  <button class="personCountButton" id="decreasePersonCountButton" onclick="decreaseNumberOfPersons(); return false;"><img src="images/decrease.png"></button></td>
+                <td>
+                  &nbsp;x&nbsp; 95 &euro; /h</td>
+                  <input type="hidden" name="perperson" id="perpersoninput" onchange="costKeyPress()"; onkeyup="costKeyPress()" style="width: 4em; text-align: right" value=""></td>
+
+              <tr>
+                <td align=right colspan=7 nowrap style="font-size: 16pt">
+                  &nbsp;= <span id="sumperhour"></span>/h</td>
+              </tr>
+            </table>
+          </td>
+          
+            
+          </td>
+        </tr>
+      </table>
+    </form>
+  </body>
+</html>
